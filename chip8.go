@@ -37,6 +37,8 @@ type VM struct {
 
 	draw bool
 
+	beep bool
+
 	cpuClock *time.Ticker
 
 	KeyInputs [16]uint8
@@ -354,6 +356,7 @@ func (vm *VM) Load(rom []byte) {
 
 func (vm *VM) Cycle() error {
 	vm.draw = false
+	vm.beep = false
 	vm.fetchOpcode()
 
 	if vm.dt > 0 {
@@ -361,10 +364,11 @@ func (vm *VM) Cycle() error {
 	}
 	if vm.st > 0 {
 		vm.st--
-		fmt.Println("BEEP!")
-	}
 
-	// fmt.Printf("opcode: %04X\n", vm.opcode)
+		if vm.st == 0 {
+			vm.beep = true
+		}
+	}
 
 	return vm.executeOpcode()
 }

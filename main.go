@@ -1,9 +1,14 @@
 package main
 
 import (
+	"log"
 	"os"
+	"time"
 
 	"github.com/faiface/pixel/pixelgl"
+	"github.com/gopxl/beep/v2"
+	"github.com/gopxl/beep/v2/mp3"
+	"github.com/gopxl/beep/v2/speaker"
 )
 
 func run() {
@@ -31,6 +36,24 @@ func run() {
 		pixelgl.KeyV: 0xF,
 	}
 
+	f, err := os.Open("assets/beep.mp3")
+	if err != nil {
+		panic(err)
+	}
+
+	streamer, format, err := mp3.Decode(f)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer streamer.Close()
+
+	buffer := beep.NewBuffer(format)
+	buffer.Append(streamer)
+
+	bufferSize := format.SampleRate.N(time.Second / 10)
+	speaker.Init(format.SampleRate, bufferSize)
+
 	// TODO: Load ROM from CLI arg
 	rom, err := os.ReadFile("roms/pong.ch8")
 	if err != nil {
@@ -43,33 +66,35 @@ func run() {
 		panic(err)
 	}
 
-	for {
-		select {
-		case <-vm.cpuClock.C:
-			if !disp.win.Closed() {
-				for keyboardKey, pixelKey := range keymap {
-					if disp.win.Pressed(pixelgl.Button(keyboardKey)) {
-						vm.KeyInputs[pixelKey] = 1
-					} else {
-						vm.KeyInputs[pixelKey] = 0
-					}
-				}
-
-				err := vm.Cycle()
-				if err != nil {
-					panic(err)
-				}
-
-				if vm.draw {
-					disp.Draw()
+	for range vm.cpuClock.C {
+		if !disp.win.Closed() {
+			for keyboardKey, pixelKey := range keymap {
+				if disp.win.Pressed(pixelgl.Button(keyboardKey)) {
+					vm.KeyInputs[pixelKey] = 1
 				} else {
-					disp.win.UpdateInput()
+					vm.KeyInputs[pixelKey] = 0
 				}
-
-				continue
-			} else {
-				return
 			}
+
+			err := vm.Cycle()
+			if err != nil {
+				panic(err)
+			}
+
+			if vm.beep {
+				sound := buffer.Streamer(0, buffer.Len())
+				speaker.Play(sound)
+			}
+
+			if vm.draw {
+				disp.Draw()
+			} else {
+				disp.win.UpdateInput()
+			}
+
+			continue
+		} else {
+			return
 		}
 	}
 }
