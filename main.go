@@ -8,31 +8,8 @@ import (
 	"github.com/faiface/pixel/pixelgl"
 )
 
-func run() {
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s <rom>\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "Provide a path to the ROM to load.\n")
-	}
-
-	flag.Parse()
-
-	if flag.NArg() != 1 {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	vm := NewVM()
-
+func run(vm *VM) {
 	beeper := NewBeeper("assets/beep.mp3")
-
-	romPath := flag.Arg(0)
-	rom, err := os.ReadFile(romPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "File '%s' doesn't exist\n", romPath)
-		os.Exit(1)
-	}
-
-	vm.Load(rom)
 
 	keypad := NewKeypad()
 	disp, err := NewDisplay(&vm.GFX)
@@ -61,9 +38,9 @@ func run() {
 
 			if vm.draw {
 				disp.Draw()
-			} else {
-				disp.win.UpdateInput()
 			}
+
+			disp.win.UpdateInput()
 
 			continue
 		} else {
@@ -73,5 +50,29 @@ func run() {
 }
 
 func main() {
-	pixelgl.Run(run)
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s <rom>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Provide a path to the ROM to load.\n")
+	}
+
+	flag.Parse()
+
+	if flag.NArg() != 1 {
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	romPath := flag.Arg(0)
+	rom, err := os.ReadFile(romPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "File '%s' doesn't exist\n", romPath)
+		os.Exit(1)
+	}
+
+	vm := NewVM()
+	vm.Load(rom)
+
+	pixelgl.Run(func() {
+		run(vm)
+	})
 }
