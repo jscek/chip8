@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/imdraw"
 	"github.com/faiface/pixel/pixelgl"
@@ -21,7 +23,7 @@ func NewDisplay(pixels *[32 * 8]uint8) (*Display, error) {
 
 	win, err := pixelgl.NewWindow(cfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create display: %w", err)
 	}
 
 	display := &Display{

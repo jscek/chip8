@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -13,15 +14,17 @@ type Beeper struct {
 	audioBuffer *beep.Buffer
 }
 
-func NewBeeper(filePath string) (*Beeper, error) {
-	f, err := os.Open(filePath)
+func NewBeeper() (*Beeper, error) {
+	beepFilePath := "assets/beep2.mp3"
+
+	f, err := os.Open(beepFilePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create beeper: %w", err)
 	}
 
 	streamer, format, err := mp3.Decode(f)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create beeper: %w", err)
 	}
 
 	buffer := beep.NewBuffer(format)

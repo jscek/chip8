@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"time"
 
@@ -46,28 +47,69 @@ type VM struct {
 	keyInputs [16]uint8
 }
 
-func (vm *VM) loadSpriteByte(x uint8, y uint8, spriteByte uint8) uint8 {
-	yPos := y % 32
-	xPos := x % 64
-	collision := uint8(0)
+func NewVM() *VM {
+	cpuFreq := 500.0
 
-	for bit := uint8(0); bit < 8; bit++ {
-		if (spriteByte & (0x80 >> bit)) != 0 {
-			// Calculate the position in the GFX array
-			arrayPos := (yPos * 8) + ((xPos + bit) / 8)
-			bitPos := 7 - ((xPos + bit) % 8)
-
-			// Check if we're going to flip a set bit (collision)
-			if (vm.gfx[arrayPos] & (1 << bitPos)) != 0 {
-				collision = 1
-			}
-
-			// XOR the bit
-			vm.gfx[arrayPos] ^= (1 << bitPos)
-		}
+	vm := &VM{
+		pc:       0x200,
+		draw:     true,
+		cpuClock: time.NewTicker(time.Duration(float64(time.Second) / cpuFreq)),
 	}
 
-	return collision
+	fonts := [80]uint8{
+		0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+		0x20, 0x60, 0x20, 0x20, 0x70, // 1
+		0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+		0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+		0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+		0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+		0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+		0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+		0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+		0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+		0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+		0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+		0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+		0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+		0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+	}
+
+	copy(vm.memory[:], fonts[:])
+
+	return vm
+}
+
+func (vm *VM) Load(rom []byte) {
+	copy(vm.memory[0x200:], rom)
+}
+
+func (vm *VM) Cycle() {
+	vm.resetFlags()
+	vm.fetchOpcode()
+	vm.updateTimers()
+	err := vm.executeOpcode()
+
+	if err != nil {
+		fmt.Printf("error executing opcode: %v", err)
+	}
+}
+
+func (vm *VM) resetFlags() {
+	vm.draw = false
+	vm.beep = false
+}
+
+func (vm *VM) updateTimers() {
+	if vm.dt > 0 {
+		vm.dt--
+	}
+	if vm.st > 0 {
+		vm.st--
+
+		if vm.st == 0 {
+			vm.beep = true
+		}
+	}
 }
 
 func (vm *VM) fetchOpcode() {
@@ -320,99 +362,65 @@ func (vm *VM) executeOpcode() error {
 	return nil
 }
 
-func NewVM() *VM {
-	cpuFreq := 500.0
+func (vm *VM) loadSpriteByte(x uint8, y uint8, spriteByte uint8) uint8 {
+	yPos := y % 32
+	xPos := x % 64
+	collision := uint8(0)
 
-	vm := &VM{
-		pc:       0x200,
-		draw:     true,
-		cpuClock: time.NewTicker(time.Duration(float64(time.Second) / cpuFreq)),
-	}
+	for bit := uint8(0); bit < 8; bit++ {
+		if (spriteByte & (0x80 >> bit)) != 0 {
+			// Calculate the position in the GFX array
+			arrayPos := (yPos * 8) + ((xPos + bit) / 8)
+			bitPos := 7 - ((xPos + bit) % 8)
 
-	fonts := [80]uint8{
-		0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
-		0x20, 0x60, 0x20, 0x20, 0x70, // 1
-		0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
-		0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
-		0x90, 0x90, 0xF0, 0x10, 0x10, // 4
-		0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
-		0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
-		0xF0, 0x10, 0x20, 0x40, 0x40, // 7
-		0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
-		0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
-		0xF0, 0x90, 0xF0, 0x90, 0x90, // A
-		0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
-		0xF0, 0x80, 0x80, 0x80, 0xF0, // C
-		0xE0, 0x90, 0x90, 0x90, 0xE0, // D
-		0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
-	}
+			// Check if we're going to flip a set bit (collision)
+			if (vm.gfx[arrayPos] & (1 << bitPos)) != 0 {
+				collision = 1
+			}
 
-	copy(vm.memory[:], fonts[:])
-
-	return vm
-}
-
-func (vm *VM) Load(rom []byte) {
-	copy(vm.memory[0x200:], rom)
-}
-
-func (vm *VM) Cycle() error {
-	vm.draw = false
-	vm.beep = false
-	vm.fetchOpcode()
-
-	if vm.dt > 0 {
-		vm.dt--
-	}
-	if vm.st > 0 {
-		vm.st--
-
-		if vm.st == 0 {
-			vm.beep = true
+			// XOR the bit
+			vm.gfx[arrayPos] ^= (1 << bitPos)
 		}
 	}
 
-	return vm.executeOpcode()
+	return collision
 }
 
 func (vm *VM) Run() {
-	beeper, err := NewBeeper("assets/beep.mp3")
+	beeper, err := NewBeeper()
 	if err != nil {
-		panic(err)
+		log.Fatalln(err)
 	}
 
 	keypad := NewKeypad()
-	disp, err := NewDisplay(&vm.gfx)
+	display, err := NewDisplay(&vm.gfx)
 	if err != nil {
-		panic(err)
+		log.Fatalln(err)
 	}
 
 	for range vm.cpuClock.C {
-		if !disp.Closed() {
-			for keyboardKey, pixelKey := range keypad.keys {
-				if disp.win.Pressed(pixelgl.Button(keyboardKey)) {
-					vm.keyInputs[pixelKey] = 1
-				} else {
-					vm.keyInputs[pixelKey] = 0
-				}
-			}
-
-			err := vm.Cycle()
-			if err != nil {
-				panic(err)
-			}
-
-			if vm.beep {
-				beeper.Beep()
-			}
-
-			if vm.draw {
-				disp.Draw()
-			}
-
-			disp.UpdateInput()
-		} else {
+		if display.Closed() {
 			return
 		}
+
+		for keyboardKey, pixelKey := range keypad.keys {
+			if display.win.Pressed(pixelgl.Button(keyboardKey)) {
+				vm.keyInputs[pixelKey] = 1
+			} else {
+				vm.keyInputs[pixelKey] = 0
+			}
+		}
+
+		vm.Cycle()
+
+		if vm.beep {
+			beeper.Beep()
+		}
+
+		if vm.draw {
+			display.Draw()
+		}
+
+		display.UpdateInput()
 	}
 }
