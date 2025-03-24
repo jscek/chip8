@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"os"
 	"time"
 
@@ -14,15 +13,15 @@ type Beeper struct {
 	audioBuffer *beep.Buffer
 }
 
-func NewBeeper(filePath string) *Beeper {
+func NewBeeper(filePath string) (*Beeper, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	streamer, format, err := mp3.Decode(f)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	buffer := beep.NewBuffer(format)
@@ -36,7 +35,7 @@ func NewBeeper(filePath string) *Beeper {
 
 	return &Beeper{
 		audioBuffer: buffer,
-	}
+	}, nil
 }
 
 func (b *Beeper) Beep() {

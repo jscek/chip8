@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math/rand"
 	"time"
+
+	"github.com/faiface/pixel/pixelgl"
 )
 
 type VM struct {
@@ -27,7 +29,7 @@ type VM struct {
 	// Stack
 	stack [16]uint16
 
-	GFX [32 * 8]uint8
+	gfx [32 * 8]uint8
 
 	// Delay Timer
 	dt uint8
@@ -41,7 +43,7 @@ type VM struct {
 
 	cpuClock *time.Ticker
 
-	KeyInputs [16]uint8
+	keyInputs [16]uint8
 }
 
 func (vm *VM) loadSpriteByte(x uint8, y uint8, spriteByte uint8) uint8 {
@@ -56,12 +58,12 @@ func (vm *VM) loadSpriteByte(x uint8, y uint8, spriteByte uint8) uint8 {
 			bitPos := 7 - ((xPos + bit) % 8)
 
 			// Check if we're going to flip a set bit (collision)
-			if (vm.GFX[arrayPos] & (1 << bitPos)) != 0 {
+			if (vm.gfx[arrayPos] & (1 << bitPos)) != 0 {
 				collision = 1
 			}
 
 			// XOR the bit
-			vm.GFX[arrayPos] ^= (1 << bitPos)
+			vm.gfx[arrayPos] ^= (1 << bitPos)
 		}
 	}
 
@@ -84,7 +86,7 @@ func (vm *VM) executeOpcode() error {
 	case 0x0000:
 		switch vm.opcode {
 		case 0x00E0:
-			vm.GFX = [32 * 8]uint8{}
+			vm.gfx = [32 * 8]uint8{}
 			vm.pc += 2
 
 		case 0x00EE:
@@ -239,14 +241,14 @@ func (vm *VM) executeOpcode() error {
 	case 0xE000:
 		switch vm.opcode & 0x00FF {
 		case 0x9E:
-			if vm.KeyInputs[vm.v[x]] != 0 {
+			if vm.keyInputs[vm.v[x]] != 0 {
 				vm.pc += 4
 			} else {
 				vm.pc += 2
 			}
 
 		case 0xA1:
-			if vm.KeyInputs[vm.v[x]] == 0 {
+			if vm.keyInputs[vm.v[x]] == 0 {
 				vm.pc += 4
 			} else {
 				vm.pc += 2
@@ -263,14 +265,14 @@ func (vm *VM) executeOpcode() error {
 			vm.pc += 2
 
 		case 0x0A:
-			for key, val := range vm.KeyInputs {
+			for key, val := range vm.keyInputs {
 				if val != 0 {
 					vm.v[x] = uint8(key)
 					vm.pc += 2
 					break
 				}
 			}
-			vm.KeyInputs[vm.v[x]] = 0
+			vm.keyInputs[vm.v[x]] = 0
 
 		case 0x15:
 			vm.dt = vm.v[x]
@@ -371,4 +373,46 @@ func (vm *VM) Cycle() error {
 	}
 
 	return vm.executeOpcode()
+}
+
+func (vm *VM) Run() {
+	beeper, err := NewBeeper("assets/beep.mp3")
+	if err != nil {
+		panic(err)
+	}
+
+	keypad := NewKeypad()
+	disp, err := NewDisplay(&vm.gfx)
+	if err != nil {
+		panic(err)
+	}
+
+	for range vm.cpuClock.C {
+		if !disp.Closed() {
+			for keyboardKey, pixelKey := range keypad.keys {
+				if disp.win.Pressed(pixelgl.Button(keyboardKey)) {
+					vm.keyInputs[pixelKey] = 1
+				} else {
+					vm.keyInputs[pixelKey] = 0
+				}
+			}
+
+			err := vm.Cycle()
+			if err != nil {
+				panic(err)
+			}
+
+			if vm.beep {
+				beeper.Beep()
+			}
+
+			if vm.draw {
+				disp.Draw()
+			}
+
+			disp.UpdateInput()
+		} else {
+			return
+		}
+	}
 }

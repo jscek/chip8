@@ -36,6 +36,10 @@ func (display *Display) Closed() bool {
 	return display.win.Closed()
 }
 
+func (display *Display) UpdateInput() {
+	display.win.UpdateInput()
+}
+
 func (display *Display) Draw() {
 	display.win.Clear(colornames.Black)
 
@@ -48,9 +52,9 @@ func (display *Display) Draw() {
 			val := uint8(xByte>>(8-1-(x%8))) & 1
 
 			if val == 1 {
-				imd.Color = colornames.Green
+				imd.Color = colornames.Lightblue
 			} else {
-				imd.Color = colornames.Black
+				imd.Color = colornames.Darkblue
 			}
 
 			xRes := x * 24
