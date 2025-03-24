@@ -15,7 +15,7 @@ type Beeper struct {
 }
 
 func NewBeeper() (*Beeper, error) {
-	beepFilePath := "assets/beep2.mp3"
+	beepFilePath := "assets/audio/beep.mp3"
 
 	f, err := os.Open(beepFilePath)
 	if err != nil {
